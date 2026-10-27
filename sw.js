@@ -1,5 +1,5 @@
-const CACHE_CORE = 'chess-core-v2';
-const CACHE_MODELS = 'chess-models-v2';
+const CACHE_CORE = 'chess-core-v3';
+const CACHE_MODELS = 'chess-models-v3';
 
 const CORE_ASSETS = [
   './',

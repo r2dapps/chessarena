@@ -58,8 +58,10 @@ new HDRLoader().load('qwantani_sunset_1k.hdr',texture=>{
   if(T.cur<=.5){
     S.environment=hdrEnvMap;
     S.environmentIntensity=.42;
-    S.background=texture;
-    S.backgroundBlurriness=0;
+    if((st.scene||'room')==='room'){
+      S.background=texture;
+      S.backgroundBlurriness=0;
+    }
   }
   applyTime(T.cur);
 },undefined,err=>console.warn('HDR load fallback',err));
@@ -82,18 +84,72 @@ const a=[];for(let i=0;i<500;i++){const u=Math.random()*6.283,v=Math.random()*1.
 const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(a,3));stars=new THREE.Points(g,new THREE.PointsMaterial({color:'#fff',size:1.6,sizeAttenuation:false,transparent:true,fog:false,depthWrite:false}));sky.add(sunM,moonM,stars)}
 let sd=7;const rnd=()=>(sd=sd*16807%2147483647)/2147483647;
 function add(g,geo,m,x,y,z,sh=true){const o=new THREE.Mesh(geo,m);o.position.set(x,y,z);o.castShadow=o.receiveShadow=sh;g.add(o);return o}
+function makeEquirectSky(stops){
+  const c=document.createElement('canvas');
+  c.width=1024;
+  c.height=512;
+  const x=c.getContext('2d');
+  const g=x.createLinearGradient(0,0,0,512);
+  stops.forEach(([pos,col])=>g.addColorStop(pos,col));
+  x.fillStyle=g;
+  x.fillRect(0,0,1024,512);
+  const t=new THREE.CanvasTexture(c);
+  t.mapping=THREE.EquirectangularReflectionMapping;
+  t.colorSpace=THREE.SRGBColorSpace;
+  return t;
+}
+let duskTexture=null,cosmosTexture=null;
+function getEnvTexture(name){
+  if(name==='garden'){
+    if(!cosmosTexture){
+      cosmosTexture=makeEquirectSky([
+        [0.0, '#04060d'],
+        [0.35, '#070a18'],
+        [0.65, '#0c132a'],
+        [0.85, '#12182b'],
+        [1.0, '#04060b']
+      ]);
+    }
+    return cosmosTexture;
+  }
+  if(name==='beach'){
+    if(!duskTexture){
+      duskTexture=makeEquirectSky([
+        [0.0, '#100c1e'],
+        [0.30, '#221538'],
+        [0.55, '#562145'],
+        [0.72, '#9c4542'],
+        [0.82, '#e07656'],
+        [0.90, '#3a1f33'],
+        [1.0, '#0b0f19']
+      ]);
+    }
+    return duskTexture;
+  }
+  return hdrTexture;
+}
+
 /* --- Clean Cinematic 3D Scene --- */
 function buildEnv(name){
   if(ENV)S.remove(ENV.g);
   const g=new THREE.Group(),glow=[],e={g,glow,name,upd:null},ty=tableY;
-  // Sleek minimalist table matching reference site
-  const tableMat=new THREE.MeshStandardMaterial({color:'#242730',roughness:.27,metalness:.25});
+  
+  let tableCol='#242730',trimCol='#6e7686',trimMet=0.6;
+  if(name==='garden'){
+    tableCol='#12151f';trimCol='#5c6779';trimMet=0.7;
+  }else if(name==='beach'){
+    tableCol='#241822';trimCol='#a86470';trimMet=0.65;
+  }else{
+    tableCol='#262933';trimCol='#8c734b';trimMet=0.6;
+  }
+
+  const tableMat=new THREE.MeshStandardMaterial({color:tableCol,roughness:.27,metalness:.25});
   const tableTop=new THREE.Mesh(new THREE.BoxGeometry(SZ*17.2,.16,SZ*13.6),tableMat);
   tableTop.position.set(0,ty-.08,0);
   tableTop.castShadow=tableTop.receiveShadow=true;
   g.add(tableTop);
 
-  const trimMat=new THREE.MeshStandardMaterial({color:'#6e7686',roughness:.22,metalness:.6});
+  const trimMat=new THREE.MeshStandardMaterial({color:trimCol,roughness:.22,metalness:trimMet});
   const trim=new THREE.Mesh(new THREE.BoxGeometry(SZ*17.35,.016,SZ*13.75),trimMat);
   trim.position.set(0,ty-.002,0);
   g.add(trim);
@@ -110,7 +166,6 @@ function buildEnv(name){
   g.position.set(O.x,0,O.z);
   S.add(g);
   ENV=e;
-  sky.visible=false;
   lamp.position.set(O.x,ty+2.7,O.z);
   lamp.userData.base=10;
   applyTime(T.cur);
@@ -119,36 +174,76 @@ function buildEnv(name){
 const C=(a,b,t)=>new THREE.Color(a).lerp(new THREE.Color(b),t);
 function applyTime(t){
   if(!ENV)return;
+  const sc=(ENV&&ENV.name)||st.scene||'room';
   const L=(a,b)=>a+(b-a)*t;
   S.fog=null;
-  if(t>.5){
-    S.background=new THREE.Color('#10121a');
-    S.environmentIntensity=.18;
+
+  if(sc==='garden'){
+    // Midnight Sky / Starry Cosmos
+    S.background=t>.5?new THREE.Color('#050711'):getEnvTexture('garden');
+    S.environment=hdrEnvMap;
+    S.environmentIntensity=t>.5?0.14:0.25;
+    sky.visible=true;
+    stars.visible=true;
+    stars.material.opacity=L(0.65,1.0);
+    moonM.visible=true;
+    sunM.visible=false;
+
+    hemi.intensity=L(0.95,0.4);
+    hemi.color.copy(C('#d0d8f0','#1a1f38',t));
+    hemi.groundColor.copy(C('#151b2e','#070914',t));
+    sun.intensity=L(1.8,0.9);
+    sun.color.copy(C('#a5b8f0','#7a8fd4',t));
+    fill.intensity=L(0.35,0.12);
+    fill.color.copy(C('#8fa0d4','#283254',t));
+  }else if(sc==='beach'){
+    // Dusk Panorama
+    S.background=t>.5?new THREE.Color('#0b0e1a'):getEnvTexture('beach');
+    S.environment=hdrEnvMap;
+    S.environmentIntensity=t>.5?0.18:0.38;
+    sky.visible=false;
+    stars.visible=false;
+    moonM.visible=t>.5;
+    sunM.visible=false;
+
+    hemi.intensity=L(1.15,0.45);
+    hemi.color.copy(C('#f5d0c5','#2a1a38',t));
+    hemi.groundColor.copy(C('#3d253b','#0d0918',t));
+    sun.intensity=L(2.4,0.95);
+    sun.color.copy(C('#f2876b','#685088',t));
+    fill.intensity=L(0.42,0.14);
+    fill.color.copy(C('#e0a5b8','#3a2b50',t));
   }else{
-    if(hdrTexture){
-      S.background=hdrTexture;
-      S.environment=hdrEnvMap;
-      S.environmentIntensity=.42;
-      S.backgroundBlurriness=0;
+    // Sunset Canyon (room)
+    if(t>.5){
+      S.background=new THREE.Color('#10121a');
+      S.environmentIntensity=0.18;
     }else{
-      S.background=new THREE.Color('#252a32');
+      S.background=hdrTexture||new THREE.Color('#252a32');
+      S.environment=hdrEnvMap;
+      S.environmentIntensity=0.44;
+      S.backgroundBlurriness=0;
     }
+    sky.visible=false;
+    stars.material.opacity=t;
+    sunM.visible=false;
+    moonM.visible=t>.4;
+
+    hemi.intensity=L(1.2,0.45);
+    hemi.color.copy(C('#f4e9d8','#2a2060',t));
+    hemi.groundColor.copy(C('#343c4a','#0a0818',t));
+    sun.intensity=L(2.8,1.0);
+    sun.color.copy(C('#ffd8ad','#6070c0',t));
+    fill.intensity=L(0.42,0.12);
+    fill.color.copy(C('#dce5f5','#4050a0',t));
   }
-  hemi.intensity=L(1.2,.45);
-  hemi.color.copy(C('#f4e9d8','#2a2060',t));
-  hemi.groundColor.copy(C('#343c4a','#0a0818',t));
-  sun.intensity=L(2.8,1.0);
-  sun.color.copy(C('#ffd8ad','#6070c0',t));
+
   sun.position.copy(O).add(new THREE.Vector3(L(-6,-8),L(12,14),L(3,10)));
   sun.target.position.copy(O);
-  fill.intensity=L(.42,.12);
-  fill.color.copy(C('#dce5f5','#4050a0',t));
   lamp.intensity=(lamp.userData.base||0)*t;
   R.toneMappingExposure=L(0.92,0.85);
-  stars.material.opacity=t;
-  sunM.visible=false;
-  moonM.visible=t>.4;
-  document.documentElement.dataset.theme=t>.5?'night':'day'}
+  document.documentElement.dataset.theme=t>.5?'night':'day';
+}
 /* board */
 const hl=new THREE.Group(),hs=new THREE.Group(),hv=new THREE.Group();S.add(hl,hs,hv);
 const HM={mint:new THREE.MeshBasicMaterial({color:P.mint,transparent:true,opacity:.95,depthWrite:false}),lav:new THREE.MeshBasicMaterial({color:P.lav,transparent:true,opacity:.55,depthWrite:false})};
