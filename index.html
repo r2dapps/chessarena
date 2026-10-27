@@ -733,6 +733,77 @@ input[type=text]#code {
   #hbtn { display: none; }
 }
 @media(prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* PWA Install Banner */
+#pwa-banner[hidden], #ios-modal[hidden], [hidden] {
+  display: none !important;
+}
+
+#pwa-banner {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 18px;
+  border-radius: 18px;
+  z-index: 100;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55);
+  animation: pwaSlideUp 0.35s ease;
+  max-width: calc(100vw - 32px);
+}
+@keyframes pwaSlideUp {
+  from { opacity: 0; transform: translate(-50%, 20px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+.pwa-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+.pwa-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pwa-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+.pwa-desc {
+  font-size: 12px;
+  color: var(--mut);
+}
+.pwa-btn {
+  padding: 7px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--ink);
+  color: var(--bg);
+  border: none;
+  transition: opacity 0.2s;
+  white-space: nowrap;
+}
+.pwa-btn:hover {
+  opacity: 0.9;
+}
+.pwa-close {
+  background: transparent;
+  border: none;
+  color: var(--mut);
+  cursor: pointer;
+  padding: 4px;
+  font-size: 15px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+}
+
 </style>
 </head>
 <body>
@@ -745,6 +816,9 @@ input[type=text]#code {
   </div>
   <div class="acts glass">
     <button class="badge-btn" id="btn2d" data-a="view2d" title="Switch 2D / 3D camera" aria-label="Switch 2D or 3D view">2D</button>
+    <button class="ib" id="btn-pwa" title="Install Chess Arena 3D" aria-label="Install PWA" hidden>
+      <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+    </button>
     <button class="ib" id="btn-restart" data-a="restart" title="Instant restart match" aria-label="Restart match">
       <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
     </button>
@@ -979,9 +1053,111 @@ input[type=text]#code {
   </div>
 </div>
 
-<script src="engine.js?v=12"></script>
-<script src="app.bundle.js?v=12"></script>
+
+<!-- PWA Install Banner -->
+<div id="pwa-banner" class="glass" hidden>
+  <span class="pwa-icon">♞</span>
+  <div class="pwa-info">
+    <div class="pwa-title">Install Chess Arena 3D</div>
+    <div class="pwa-desc">Play offline with instant startup & full 3D graphics</div>
+  </div>
+  <button id="pwa-install-btn" class="pwa-btn">Install</button>
+  <button id="pwa-close-btn" class="pwa-close" aria-label="Dismiss">✕</button>
+</div>
+
+<!-- iOS Install Guidance Modal -->
+<div class="modal" id="ios-modal" hidden>
+  <div class="card glass" style="max-width: 360px; text-align: center; gap: 14px; padding: 24px;">
+    <div style="font-size: 36px; line-height: 1;">♞</div>
+    <h3 style="margin: 0; font-size: 19px; font-weight: 600;">Install on iOS</h3>
+    <p style="margin: 0; font-size: 14px; color: var(--mut); line-height: 1.5; text-align: left;">
+      1. Tap the <b>Share</b> icon in Safari.<br>
+      2. Scroll down and tap <b>Add to Home Screen</b>.<br>
+      3. Tap <b>Add</b> to launch Chess Arena 3D in fullscreen.
+    </p>
+    <button class="btn go" id="ios-close-btn" style="width: 100%; padding: 12px; border-radius: 12px; margin-top: 6px;">Got it</button>
+  </div>
+</div>
+
+<script src="engine.js?v=14"></script>
+<script src="app.bundle.js?v=14"></script>
+
 <script>
+let deferredInstallPrompt = null;
+const isIos = /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  const banner = document.getElementById('pwa-banner');
+  const btnPwa = document.getElementById('btn-pwa');
+  if (btnPwa) btnPwa.hidden = false;
+  if (!sessionStorage.getItem('pwa_dismissed') && banner) {
+    banner.hidden = false;
+  }
+});
+
+function triggerPwaInstall() {
+  if (deferredInstallPrompt) {
+    deferredInstallPrompt.prompt();
+    deferredInstallPrompt.userChoice.then((choiceResult) => {
+      if (choiceResult.outcome === 'accepted') {
+        const banner = document.getElementById('pwa-banner');
+        if (banner) banner.hidden = true;
+      }
+      deferredInstallPrompt = null;
+    });
+  } else if (isIos && !isStandalone) {
+    const iosModal = document.getElementById('ios-modal');
+    if (iosModal) iosModal.hidden = false;
+  } else {
+    if (isStandalone) {
+      if (window.toast) window.toast('Chess Arena is already installed');
+    } else {
+      if (window.toast) window.toast('Install via your browser menu');
+    }
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const installBtn = document.getElementById('pwa-install-btn');
+  const closeBtn = document.getElementById('pwa-close-btn');
+  const btnPwa = document.getElementById('btn-pwa');
+  const banner = document.getElementById('pwa-banner');
+  const iosClose = document.getElementById('ios-close-btn');
+  const iosModal = document.getElementById('ios-modal');
+
+  if (installBtn) installBtn.addEventListener('click', triggerPwaInstall);
+  if (btnPwa) btnPwa.addEventListener('click', triggerPwaInstall);
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      if (banner) banner.hidden = true;
+      sessionStorage.setItem('pwa_dismissed', '1');
+    });
+  }
+  if (iosClose && iosModal) {
+    iosClose.addEventListener('click', () => {
+      iosModal.hidden = true;
+    });
+  }
+
+  // Show header install button on iOS Safari if not installed
+  if (isIos && !isStandalone && btnPwa) {
+    btnPwa.hidden = false;
+  }
+});
+
+window.addEventListener('appinstalled', () => {
+  const banner = document.getElementById('pwa-banner');
+  const btnPwa = document.getElementById('btn-pwa');
+  if (banner) banner.hidden = true;
+  if (btnPwa) btnPwa.hidden = true;
+  deferredInstallPrompt = null;
+  console.log('Chess Arena 3D installed successfully');
+});
+
+// Service Worker Registration
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js').then((reg) => {
@@ -992,5 +1168,6 @@ if ('serviceWorker' in navigator) {
   });
 }
 </script>
+
 </body>
 </html>

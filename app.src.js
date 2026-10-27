@@ -47,7 +47,7 @@ function speak(text){
 /* three */
 const canvas=$('#c'),R=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance',logarithmicDepthBuffer:false}),S=new THREE.Scene(),cam=new THREE.PerspectiveCamera(40,1,.1,600),orthoCam=new THREE.OrthographicCamera(-1,1,1,-1,.1,100);
 let activeCam=cam;
-R.shadowMap.enabled=true;R.shadowMap.type=THREE.PCFSoftShadowMap;R.toneMapping=THREE.ACESFilmicToneMapping;R.toneMappingExposure=1.15;
+R.shadowMap.enabled=true;R.shadowMap.type=THREE.PCFShadowMap;R.toneMapping=THREE.ACESFilmicToneMapping;R.toneMappingExposure=1.15;
 const pmrem=new THREE.PMREMGenerator(R);
 pmrem.compileEquirectangularShader();
 let hdrTexture=null,hdrEnvMap=null;
@@ -405,7 +405,14 @@ function toggle2D(){
 }
 window.toggle2D=toggle2D;
 
-function flipView(side){if(side===viewSide||!ready)return;viewSide=side;const off=cam.position.clone().sub(ctl.target);flipT={t0:performance.now(),off,d:1000}}
+function flipView(side){
+  if(side===viewSide||!ready)return;
+  viewSide=side;
+  const el=.58;
+  const to=O.clone().addScaledVector(RK,-side*dist0*Math.cos(el)).add(new THREE.Vector3(0,dist0*Math.sin(el),0));
+  const off=cam.position.clone().sub(ctl.target);
+  flipT={t0:performance.now(),from:cam.position.clone(),to,off,d:800,is2D:false};
+}
 function resize(){const w=innerWidth,h=innerHeight,wide=matchMedia('(min-width:980px), (max-height:520px) and (orientation:landscape)').matches,p=$('#panel');R.setPixelRatio(Math.min(devicePixelRatio,w<700?1.5:2));R.setSize(w,h,false);
 const B=SZ*8,asp=w/h;dist0=Math.max(4,B*2.05/Math.min(1,asp*1.05));ctl.maxDistance=dist0*1.7;ctl.minDistance=B*.7;
 if(wide){const off=p.offsetWidth+20;cam.aspect=(w+off)/h;cam.setViewOffset(w+off,h,off,0,w,h)}else{cam.clearViewOffset();cam.aspect=w/h}cam.updateProjectionMatrix();
@@ -418,13 +425,33 @@ addEventListener('resize',()=>{ready&&resize()});
 R.setAnimationLoop(()=>{const now=performance.now();
 if(Math.abs(T.cur-T.tgt)>.002){T.cur+=(T.tgt-T.cur)*.06;applyTime(T.cur)}
 for(let i=TW.length-1;i>=0;i--){const w=TW[i];if(now<w.t0)continue;const u=Math.min(1,(now-w.t0)/w.d),e=u<.5?2*u*u:1-2*(1-u)*(1-u);w.o.position.lerpVectors(w.a,w.b,e);w.o.position.y+=w.arc*Math.sin(Math.PI*u);if(u>=1){TW.splice(i,1);w.res()}}
-if(flipT){const u=Math.min(1,(now-flipT.t0)/flipT.d),e=u*u*(3-2*u);
-  if(flipT.from&&flipT.to){cam.position.lerpVectors(flipT.from,flipT.to,e);ctl.target.copy(O).add(new THREE.Vector3(0,.15,0));cam.lookAt(ctl.target)}
-  else{cam.position.copy(ctl.target).add(flipT.off.clone().applyAxisAngle(UP,Math.PI*e))}
-  if(ctl.enabled)ctl.update();
-  if(u>=1){
-    if(flipT.is2D){activeCam=orthoCam;ctl.enabled=false}
-    else{activeCam=cam;cam.position.copy(flipT.to);ctl.target.copy(O).add(new THREE.Vector3(0,.15,0));cam.lookAt(ctl.target);ctl.enabled=true;ctl.update()}
+if(flipT){
+  try{
+    const u=Math.min(1,(now-flipT.t0)/flipT.d),e=u*u*(3-2*u);
+    if(flipT.from&&flipT.to){
+      cam.position.lerpVectors(flipT.from,flipT.to,e);
+      if(O) ctl.target.copy(O).add(new THREE.Vector3(0,.15,0));
+      cam.lookAt(ctl.target);
+    }else if(flipT.off){
+      cam.position.copy(ctl.target).add(flipT.off.clone().applyAxisAngle(UP,Math.PI*e));
+    }
+    if(ctl.enabled)ctl.update();
+    if(u>=1){
+      if(flipT.is2D){
+        activeCam=orthoCam;
+        ctl.enabled=false;
+      }else{
+        activeCam=cam;
+        if(flipT.to) cam.position.copy(flipT.to);
+        if(O) ctl.target.copy(O).add(new THREE.Vector3(0,.15,0));
+        cam.lookAt(ctl.target);
+        ctl.enabled=true;
+        ctl.update();
+      }
+      flipT=null;
+    }
+  }catch(err){
+    console.error('flipT error:', err);
     flipT=null;
   }
 }
@@ -536,7 +563,13 @@ function endGame(ms){
   const card=$('#res .card');
   if(card){card.style.opacity='0';card.style.transform='scale(.92) translateY(12px)';requestAnimationFrame(()=>{card.style.transition='opacity .35s ease,transform .35s ease';card.style.opacity='1';card.style.transform='scale(1) translateY(0)'})}
 }
-function save(){if(cfg.mode!=='online')LS.set('game',{mode:cfg.mode,me:cfg.me,level:cfg.level,moves:G.hist.map(h=>[h.m.from,h.m.to,h.m.promo||0]),clk:clk&&{w:clk.w,b:clk.b,tc:clk.tc,started:clk.started}})}
+function save(){
+  if(cfg.mode!=='online'&&!over&&G.hist.length>0){
+    LS.set('game',{mode:cfg.mode,me:cfg.me,level:cfg.level,moves:G.hist.map(h=>[h.m.from,h.m.to,h.m.promo||0]),clk:clk&&{w:clk.w,b:clk.b,tc:clk.tc,started:clk.started}});
+  }else if(over||G.hist.length===0){
+    LS.set('game',null);
+  }
+}
 async function rebuild(moves){epoch++;thinking=false;G=new Game();resetViz();over=false;busy=true;clearSel();for(const[f,t,p]of moves){const c=G.turn,r=G.move(f,t,p);if(r)await vmove(r.m,c,false)}
 const ms=G.status();over=!!ms.over;busy=false;marks();ui();ctlView()}
 function ctlView(){const side=cfg.mode==='local'?G.turn:cfg.me;flipView(side)}
@@ -567,11 +600,19 @@ async function newGame(boot){
   $('#res').hidden=true;let moves=[],sv=null;
   epoch++;thinking=false;over=false;busy=false;clearSel();
   if(boot){
-    sv=LS.get('game');
-    if(sv&&sv.mode!=='online'&&sv.moves?.length){
-      cfg.mode=sv.mode;cfg.me=sv.me;cfg.level=sv.level;cfg.time=sv.clk?.tc||LS.get('time','5+0');moves=sv.moves;
-    }else{
-      sv=null;if(st.mode==='online')cfg.mode='cpu';cfg.time=LS.get('time','5+0');
+    try {
+      const isReload = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]?.type === 'reload') || (window.performance?.navigation?.type === 1);
+      if(isReload) {
+        LS.set('game', null);
+      }
+      sv = isReload ? null : LS.get('game');
+      if(sv && sv.mode!=='online' && Array.isArray(sv.moves) && sv.moves.length){
+        cfg.mode=sv.mode;cfg.me=sv.me;cfg.level=sv.level;cfg.time=sv.clk?.tc||LS.get('time','5+0');moves=sv.moves;
+      }else{
+        sv=null;if(st.mode==='online')cfg.mode='cpu';cfg.time=LS.get('time','5+0');
+      }
+    } catch(e) {
+      sv=null;LS.set('game',null);
     }
   }
   if(cfg.mode==='scenario'){
@@ -594,8 +635,8 @@ else if(a==='new')cfg.mode==='online'?(net.conn?.open?rematch():openSheet()):ope
 else if(a==='undo'&&!busy||a==='undo'&&thinking){const n=cfg.mode==='cpu'?(G.turn===cfg.me?2:1):1,mv=G.hist.slice(0,Math.max(0,G.hist.length-n)).map(h=>[h.m.from,h.m.to,h.m.promo||0]);await rebuild(mv);save();if(cfg.mode==='cpu'&&G.turn!==cfg.me)aiMove()}
 else if(a==='resign'&&!over){const loser=cfg.mode==='local'?G.turn:cfg.me;if(cfg.mode==='online')net.send({t:'resign'});over=true;endGame({win:-loser,why:'Resigned'});ui()}};
 const b2d=$('#btn2d');if(b2d)b2d.onclick=()=>{toggle2D();b2d.textContent=is2D?'3D':'2D'};
-const rst=$('#btn-restart');if(rst)rst.onclick=()=>{if(cfg.mode==='online'){toast('Reset disabled in online room');return}newGame();toast('Game restarted')};
-$('#again').onclick=()=>{cfg.mode==='online'?(net.conn?.open?rematch():(openSheet(),$('#res').hidden=true)):newGame()};
+const rst=$('#btn-restart');if(rst)rst.onclick=()=>{if(cfg.mode==='online'){toast('Reset disabled in online room');return}LS.set('game',null);newGame();toast('Fresh match started')};
+$('#again').onclick=()=>{LS.set('game',null);cfg.mode==='online'?(net.conn?.open?rematch():(openSheet(),$('#res').hidden=true)):newGame()};
 
 /* === STORYBOARD WIZARD CONTROLLER === */
 let wizStep=1;
