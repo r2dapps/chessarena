@@ -1,0 +1,27 @@
+{
+  "name": "Chess Arena 3D",
+  "short_name": "Chess 3D",
+  "description": "High-performance 3D chess game powered by Three.js WebGL graphics, procedural AI Web Worker, and PeerJS peer-to-peer multiplayer.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": [
+    "standalone",
+    "fullscreen"
+  ],
+  "orientation": "any",
+  "background_color": "#090b0e",
+  "theme_color": "#090b0e",
+  "categories": [
+    "games",
+    "entertainment"
+  ],
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

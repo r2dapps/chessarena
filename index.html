@@ -1,0 +1,996 @@
+<!doctype html>
+<html lang="en" data-theme="night">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Chess Arena 3D — WebGL Three.js Chess with AI & PeerJS P2P</title>
+<meta name="description" content="Play interactive 3D chess in your browser with realistic Three.js WebGL graphics, procedural AI Web Worker engine, and real-time PeerJS peer-to-peer multiplayer. Fully responsive, offline-ready PWA.">
+<meta name="keywords" content="chess, 3d chess, webgl chess, three.js chess, peerjs multiplayer, ai chess bot, pwa chess, chess arena">
+<meta name="author" content="Razel Tech">
+<meta name="theme-color" content="#090b0e">
+<link rel="canonical" href="https://razeltech.github.io/chessarena/">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="manifest" href="manifest.webmanifest">
+
+<!-- OpenGraph / Social Metadata -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="Chess Arena 3D — WebGL Three.js Chess with AI & PeerJS P2P">
+<meta property="og:description" content="Interactive 3D chess game with Three.js WebGL graphics, minimax AI worker, and peer-to-peer multiplayer.">
+<meta property="og:url" content="https://razeltech.github.io/chessarena/">
+<meta property="og:image" content="https://razeltech.github.io/chessarena/icon.svg">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Chess Arena 3D — WebGL Three.js Chess with AI & PeerJS P2P">
+<meta name="twitter:description" content="Interactive 3D chess game with Three.js WebGL graphics, minimax AI worker, and peer-to-peer multiplayer.">
+<meta name="twitter:image" content="https://razeltech.github.io/chessarena/icon.svg">
+
+<!-- JSON-LD Entity Graph -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": ["VideoGame", "WebApplication"],
+  "name": "Chess Arena 3D",
+  "url": "https://razeltech.github.io/chessarena/",
+  "description": "High-performance 3D chess web application featuring Three.js WebGL rendering, Web Worker minimax AI engine, and real-time PeerJS peer-to-peer multiplayer.",
+  "applicationCategory": "GameApplication",
+  "operatingSystem": "All modern browsers (Chrome, Edge, Firefox, Safari)",
+  "browserRequirements": "Requires WebGL support",
+  "genre": "Chess / Board Game",
+  "author": {
+    "@type": "Organization",
+    "name": "Razel Tech",
+    "url": "https://razeltech.github.io"
+  }
+}
+</script>
+<style>
+:root {
+  --bg: #090b0e;
+  --surface: #12151c;
+  --surface-hover: #1a1e27;
+  --ink: #f2f4f8;
+  --mut: #7d8494;
+  --line: rgba(255, 255, 255, 0.10);
+  --line-strong: rgba(255, 255, 255, 0.22);
+  --glass: rgba(14, 17, 24, 0.78);
+  --glass-card: rgba(18, 21, 30, 0.90);
+  --accent: #f2f4f8;
+  --accent-ink: #0e1015;
+  --pw: #ffffff;
+  --pb: #181b22;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+[data-theme=day] {
+  --bg: #f2f4f7;
+  --surface: #ffffff;
+  --surface-hover: #e9ecf1;
+  --ink: #11141a;
+  --mut: #686f7e;
+  --line: rgba(0, 0, 0, 0.09);
+  --line-strong: rgba(0, 0, 0, 0.20);
+  --glass: rgba(255, 255, 255, 0.82);
+  --glass-card: rgba(255, 255, 255, 0.94);
+  --accent: #11141a;
+  --accent-ink: #ffffff;
+  --pw: #ffffff;
+  --pb: #252830;
+}
+* { box-sizing: border-box; margin: 0; -webkit-tap-highlight-color: transparent; }
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+#c {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  outline: 0;
+}
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+.glass {
+  background: var(--glass);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+}
+
+/* === TOP BAR === */
+#bar {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  left: 14px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+  z-index: 5;
+}
+#bar > * { pointer-events: auto; }
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px 8px 12px;
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.brand-glyph {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.acts {
+  display: flex;
+  gap: 6px;
+  padding: 5px;
+  align-items: center;
+}
+.ib {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  color: var(--ink);
+  border: 1px solid transparent;
+}
+.ib:hover {
+  background: var(--line);
+  border-color: var(--line-strong);
+}
+.ib svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.ib[disabled] { opacity: 0.28; pointer-events: none; }
+
+/* 2D / 3D pill button */
+.badge-btn {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 0 12px;
+  height: 36px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+.badge-btn:hover {
+  background: var(--surface-hover);
+  border-color: var(--line-strong);
+}
+.badge-btn.active {
+  background: var(--ink);
+  color: var(--bg);
+  border-color: var(--ink);
+}
+
+/* Day / Night switch */
+.tg {
+  position: relative;
+  width: 54px;
+  height: 32px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  transition: border-color 0.2s, background 0.2s;
+}
+.tg i {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--ink);
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  display: grid;
+  place-items: center;
+}
+.tg svg { width: 14px; height: 14px; fill: none; stroke: var(--bg); stroke-width: 2; stroke-linecap: round; }
+.tg .mn { display: block; }
+.tg .sn { display: none; }
+[data-theme=night] .tg i { transform: translateX(22px); }
+[data-theme=day] .tg i { transform: translateX(0); }
+[data-theme=day] .tg .mn { display: none; }
+[data-theme=day] .tg .sn { display: block; }
+
+/* === PLAYER & MOVE PANEL === */
+#panel {
+  position: fixed;
+  right: 14px;
+  top: calc(max(12px, env(safe-area-inset-top)) + 58px);
+  bottom: 14px;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  gap: 12px;
+  z-index: 4;
+}
+.pl {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: transparent;
+  transition: background 0.2s;
+}
+.pl b { font-weight: 600; font-size: 15px; letter-spacing: -0.01em; }
+.pl .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mut);
+  opacity: 0.4;
+  flex: none;
+  transition: all 0.3s ease;
+}
+.pl.on .dot {
+  background: var(--ink);
+  opacity: 1;
+  box-shadow: 0 0 0 3px var(--line-strong);
+}
+.pl.th .dot {
+  animation: pulse-dot 1.2s infinite ease-in-out;
+}
+@keyframes pulse-dot { 0%, 100% { opacity: 0.3; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.3); } }
+
+.cap { display: flex; flex-wrap: wrap; gap: 0; flex: 1; min-width: 0; justify-content: flex-end; }
+.pc {
+  width: 20px;
+  height: 20px;
+  margin-left: -5px;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  overflow: visible;
+}
+.pc.w { fill: #ffffff; stroke: #11141a; }
+.pc.b { fill: #11141a; stroke: #ffffff; }
+
+/* === DIGITAL CLOCK DISPLAY === */
+.clk {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  font-weight: 300;
+  font-size: 26px;
+  letter-spacing: 0.05em;
+  padding: 4px 12px 3px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  margin-left: auto;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  line-height: 1.1;
+  color: var(--mut);
+}
+.clk[hidden] { display: none; }
+.pl.on .clk {
+  color: var(--ink);
+  border-color: var(--line-strong);
+  background: var(--surface-hover);
+  font-weight: 500;
+}
+.clk.low {
+  color: #ff4d4f;
+  border-color: rgba(255, 77, 79, 0.4);
+  background: rgba(255, 77, 79, 0.08);
+  animation: clk-urgent 0.8s infinite;
+}
+@keyframes clk-urgent { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+.pl em { font-style: normal; font-size: 13px; color: var(--mut); min-width: 20px; text-align: right; }
+
+#hist {
+  flex: 1;
+  overflow: auto;
+  list-style: none;
+  padding: 6px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+  scrollbar-width: thin;
+  touch-action: pan-y;
+}
+#hist li {
+  display: grid;
+  grid-template-columns: 32px 1fr 1fr;
+  padding: 6px 6px;
+  font-size: 14px;
+  border-radius: 8px;
+}
+#hist li span { color: var(--mut); font-size: 13px; }
+#hist b { font-weight: 500; }
+#hist b.cur {
+  color: var(--bg);
+  background: var(--ink);
+  border-radius: 6px;
+  padding: 1px 6px;
+  margin-left: -6px;
+  width: fit-content;
+}
+
+.ctl {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 2px 0;
+}
+
+#hbtn { display: none; }
+
+#toast {
+  position: fixed;
+  left: 50%;
+  top: calc(max(12px, env(safe-area-inset-top)) + 64px);
+  transform: translate(-50%, -16px);
+  opacity: 0;
+  padding: 10px 20px;
+  font-weight: 500;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  transition: opacity 0.25s, transform 0.25s;
+  pointer-events: none;
+  z-index: 10;
+  white-space: nowrap;
+  background: var(--ink);
+  color: var(--bg);
+  border-radius: 12px;
+}
+#toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+/* === MODALS & CARDS === */
+.modal {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 9;
+  padding: 16px;
+}
+.modal[hidden] { display: none; }
+
+.card {
+  width: min(460px, 100%);
+  max-height: 92vh;
+  overflow: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  touch-action: pan-y;
+  background: var(--glass-card);
+  border-radius: 20px;
+  border: 1px solid var(--line-strong);
+}
+
+/* === STORYBOARD WIZARD === */
+.wiz-head {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.wiz-step-pill {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mut);
+}
+.wiz-title {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  line-height: 1.2;
+}
+.wiz-desc {
+  font-size: 13px;
+  color: var(--mut);
+}
+
+/* Tab bar for quick changes */
+.wiz-tabs {
+  display: flex;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 3px;
+  gap: 3px;
+}
+.wiz-tab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 4px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mut);
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+.wiz-tab:hover {
+  color: var(--ink);
+  background: var(--surface-hover);
+}
+.wiz-tab.on {
+  background: var(--ink);
+  color: var(--bg);
+}
+.wiz-tab-num {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--line);
+  color: inherit;
+}
+.wiz-tab.on .wiz-tab-num {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.wiz-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 170px;
+}
+.wiz-step {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.wiz-step[hidden] { display: none; }
+.field-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mut);
+}
+.step-sub {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.step-sub[hidden] { display: none; }
+
+.grid-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.pick-item {
+  text-align: left;
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  flex-direction: column;
+}
+.pick-item:hover {
+  background: var(--surface-hover);
+  border-color: var(--line-strong);
+}
+.pick-item.on {
+  border-color: var(--ink);
+  background: var(--surface-hover);
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+.pick-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.2;
+}
+.pick-sub {
+  font-size: 11px;
+  color: var(--mut);
+  margin-top: 3px;
+  line-height: 1.2;
+}
+
+.wiz-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  margin-top: 2px;
+}
+.wiz-dots {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.wiz-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--line-strong);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.wiz-dot.on {
+  width: 18px;
+  border-radius: 4px;
+  background: var(--ink);
+}
+.wiz-btn-prev, .wiz-btn-next {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 16px;
+  border-radius: 11px;
+}
+.wiz-btn-prev svg, .wiz-btn-next svg {
+  width: 15px;
+  height: 15px;
+}
+
+.seg {
+  display: flex;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 3px;
+  gap: 2px;
+}
+.seg button {
+  flex: 1;
+  padding: 9px 8px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  color: var(--mut);
+}
+.seg button.on {
+  background: var(--ink);
+  color: var(--bg);
+}
+.seg.grid-boards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+}
+
+.lv {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.lv span {
+  min-width: 90px;
+  text-align: right;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--ink);
+}
+input[type=range] {
+  flex: 1;
+  accent-color: var(--ink);
+  height: 20px;
+}
+
+.row { display: flex; gap: 8px; align-items: center; }
+input[type=text] {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  user-select: text;
+  -webkit-user-select: text;
+}
+input[type=text].name-input {
+  letter-spacing: normal;
+  text-transform: none;
+  text-align: left;
+}
+input[type=text]#code {
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.btn {
+  padding: 12px 20px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink);
+  transition: all 0.15s ease;
+}
+.btn:hover {
+  background: var(--surface-hover);
+  border-color: var(--line-strong);
+}
+.btn.go {
+  background: var(--ink);
+  color: var(--bg);
+  border: 1px solid var(--ink);
+  padding: 14px;
+  font-size: 15px;
+}
+.btn.go:hover { opacity: 0.92; transform: translateY(-1px); }
+
+#room { font-size: 26px; letter-spacing: 0.35em; text-align: center; font-weight: 300; }
+.pk { display: flex; gap: 10px; padding: 16px; border-radius: 18px; background: var(--glass-card); }
+.pk button {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  display: grid;
+  place-items: center;
+  transition: border-color 0.15s;
+}
+.pk button:hover { border-color: var(--ink); }
+.pk .pc { width: 42px; height: 42px; margin: 0; }
+
+/* === GAME OVER CARD === */
+.res { text-align: center; gap: 0; align-items: center; padding: 0; }
+.res-inner { display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 36px 30px 30px; width: 100%; }
+.res-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+}
+.res-icon svg { width: 28px; height: 28px; stroke: var(--ink); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.res h2 { font-weight: 400; font-size: 30px; letter-spacing: -0.02em; line-height: 1.2; margin: 0; }
+.res p { color: var(--mut); font-size: 15px; letter-spacing: 0.02em; margin: 0; }
+.res .btn.go { width: 100%; border-radius: 14px; font-size: 15px; padding: 15px; margin-top: 6px; }
+
+/* Mobile adaptations */
+@media(max-width: 979px) {
+  #panel {
+    left: 12px;
+    right: 12px;
+    top: auto;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    width: auto;
+    padding: 8px 12px;
+    gap: 6px;
+    border-radius: 16px;
+    max-height: 45vh;
+  }
+  #hist { display: none; max-height: 22vh; flex: none; }
+  #panel.open #hist { display: block; }
+  #hbtn { display: grid; }
+  .pl.pt { order: 0; }
+  .pl.pb { order: 2; }
+  .ctl { order: 3; }
+  #hist { order: 1; }
+  .pl { min-height: 34px; padding: 3px 6px; }
+  .brand .brand-name { display: none; }
+  .brand { padding: 8px 12px; }
+  .brand-glyph { font-size: 19px; line-height: 1; display: block; }
+  .clk { font-size: 20px; padding: 2px 8px; }
+}
+@media(max-height: 520px) and (orientation: landscape) {
+  #panel { left: auto; right: 10px; width: 260px; top: 60px; bottom: 10px; max-height: none; }
+  #hist { display: block; flex: 1; }
+  #hbtn { display: none; }
+}
+@media(prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="3D Chess board"></canvas>
+
+<div id="bar">
+  <div class="brand glass">
+    <span class="brand-glyph">♞</span>
+    <span class="brand-name">CHESS ARENA</span>
+  </div>
+  <div class="acts glass">
+    <button class="badge-btn" id="btn2d" data-a="view2d" title="Switch 2D / 3D camera" aria-label="Switch 2D or 3D view">2D</button>
+    <button class="ib" id="btn-restart" data-a="restart" title="Instant restart match" aria-label="Restart match">
+      <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+    </button>
+    <button class="tg" id="tg" aria-label="Day or night theme">
+      <i>
+        <svg class="sn" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M5 19l1.5-1.5M17.5 6.5L19 5"/></svg>
+        <svg class="mn" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/></svg>
+      </i>
+    </button>
+    <button class="ib" id="snd" aria-label="Toggle sound"></button>
+    <button class="ib" id="hbtn" aria-label="Move history"></button>
+    <button class="ib" id="menu" aria-label="Settings and game mode"></button>
+  </div>
+</div>
+
+<aside id="panel" class="glass">
+  <div class="pl pt" id="pt">
+    <i class="dot"></i>
+    <b>Computer</b>
+    <span class="cap"></span>
+    <em></em>
+    <time class="clk" hidden>05:00</time>
+  </div>
+  <ol id="hist"></ol>
+  <div class="pl pb" id="pb">
+    <i class="dot"></i>
+    <b>You</b>
+    <span class="cap"></span>
+    <em></em>
+    <time class="clk" hidden>05:00</time>
+  </div>
+  <div class="ctl">
+    <button class="ib" data-a="undo" title="Undo move" aria-label="Undo"></button>
+    <button class="ib" data-a="flip" title="Flip board view" aria-label="Flip view"></button>
+    <button class="ib" data-a="resign" title="Resign game" aria-label="Resign"></button>
+    <button class="ib" data-a="new" title="Game settings" aria-label="New game"></button>
+  </div>
+</aside>
+
+<div id="toast" role="status"></div>
+
+<div class="modal" id="sheet" hidden>
+  <div class="card glass">
+    <!-- Storyboard Header -->
+    <div class="wiz-head">
+      <div class="wiz-step-pill" id="wiz-step-lbl">Level 1 of 4</div>
+      <h2 class="wiz-title" id="wiz-title">Player Identity</h2>
+      <p class="wiz-desc" id="wiz-desc">Enter your moniker and choose your pieces</p>
+    </div>
+
+    <!-- Quick Navigation Tab System -->
+    <nav class="wiz-tabs" id="wiz-tabs" aria-label="Wizard levels">
+      <button class="wiz-tab on" data-tab="1">
+        <span class="wiz-tab-num">1</span>
+        <span class="wiz-tab-title">Player</span>
+      </button>
+      <button class="wiz-tab" data-tab="2">
+        <span class="wiz-tab-num">2</span>
+        <span class="wiz-tab-title">Format</span>
+      </button>
+      <button class="wiz-tab" data-tab="3">
+        <span class="wiz-tab-num">3</span>
+        <span class="wiz-tab-title">Theme</span>
+      </button>
+      <button class="wiz-tab" data-tab="4">
+        <span class="wiz-tab-num">4</span>
+        <span class="wiz-tab-title">Clock</span>
+      </button>
+    </nav>
+
+    <!-- Storyboard Steps Container -->
+    <div class="wiz-body">
+      <!-- Step 1: Identity & Side -->
+      <section class="wiz-step" data-step="1">
+        <label class="field-label" for="player-name">Player Handle</label>
+        <div class="row">
+          <input type="text" id="player-name" maxlength="16" placeholder="Grandmaster" autocomplete="off" spellcheck="false" class="name-input">
+        </div>
+        <label class="field-label" style="margin-top: 10px;">Piece Color</label>
+        <div class="seg" data-k="side">
+          <button data-v="1" class="on">White</button>
+          <button data-v="-1">Black</button>
+          <button data-v="0">Random</button>
+        </div>
+      </section>
+
+      <!-- Step 2: Mode & Opponent -->
+      <section class="wiz-step" data-step="2" hidden>
+        <label class="field-label">Opponent & Format</label>
+        <div class="seg" data-k="mode">
+          <button data-v="cpu" class="on">Vs AI</button>
+          <button data-v="local">Local 2P</button>
+          <button data-v="online">Online</button>
+          <button data-v="scenario">Scenario</button>
+        </div>
+
+        <div id="ai-opts" class="step-sub">
+          <label class="field-label">AI Engine Level</label>
+          <div class="lv">
+            <input type="range" id="lvl" min="1" max="5" value="3" aria-label="AI Difficulty">
+            <span id="lvn">Club (Lvl 3)</span>
+          </div>
+        </div>
+
+        <div id="scenario-opts" class="step-sub" hidden>
+          <label class="field-label">Tactical Scenario</label>
+          <div class="grid-picker" data-k="scenario">
+            <button class="pick-item on" data-v="backrank">
+              <span class="pick-name">Back-Rank Mate</span>
+              <span class="pick-sub">White to move · Mate in 1</span>
+            </button>
+            <button class="pick-item" data-v="fork">
+              <span class="pick-name">Knight Royal Fork</span>
+              <span class="pick-sub">White to move · Win Queen</span>
+            </button>
+            <button class="pick-item" data-v="smothered">
+              <span class="pick-name">Smothered Mate</span>
+              <span class="pick-sub">Philidor Pattern · Win</span>
+            </button>
+            <button class="pick-item" data-v="endgame">
+              <span class="pick-name">Pawn Endgame Drill</span>
+              <span class="pick-sub">King & Pawn Opposition</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="net" class="step-sub" hidden>
+          <label class="field-label">Multiplayer Room</label>
+          <div class="row">
+            <input type="text" id="code" maxlength="5" placeholder="ROOM CODE" aria-label="Room code" autocomplete="off">
+            <button class="btn" id="join">Join Room</button>
+          </div>
+          <div id="roomw" hidden>
+            <div id="room"></div>
+            <div class="row"><button class="btn" id="copy" style="flex:1">Copy Invite Link</button></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Step 3: Board & Atmosphere -->
+      <section class="wiz-step" data-step="3" hidden>
+        <label class="field-label">Checkerboard Style</label>
+        <div class="seg grid-boards" data-k="board">
+          <button data-v="wood" class="on">Walnut & Maple</button>
+          <button data-v="emerald">Tournament Emerald</button>
+          <button data-v="navy">Royal Navy & Ice</button>
+          <button data-v="marble">Obsidian & Marble</button>
+          <button data-v="rosewood">Crimson Rosewood</button>
+          <button data-v="slate">Slate & Zinc</button>
+        </div>
+
+        <label class="field-label" style="margin-top: 10px;">Environment Atmosphere</label>
+        <div class="seg" data-k="scene">
+          <button data-v="room" class="on">Sunset Canyon</button>
+          <button data-v="garden">Midnight Sky</button>
+          <button data-v="beach">Dusk Panorama</button>
+        </div>
+
+        <label class="field-label" style="margin-top: 10px;">Lighting Mode</label>
+        <div class="seg" data-k="lighting">
+          <button data-v="night" class="on">Night Mode</button>
+          <button data-v="day">Day Mode</button>
+        </div>
+
+        <label class="field-label" style="margin-top: 10px;">Piece Color Combination</label>
+        <div class="seg" data-k="pieceSet">
+          <button data-v="ivory" class="on">Ivory & Obsidian</button>
+          <button data-v="gold">Gold & Chrome</button>
+          <button data-v="walnut">Alabaster & Walnut</button>
+          <button data-v="mono">Pure Stark</button>
+        </div>
+      </section>
+
+      <!-- Step 4: Time Control -->
+      <section class="wiz-step" data-step="4" hidden>
+        <label class="field-label">Clock Preset</label>
+        <div class="grid-picker" data-k="time">
+          <button class="pick-item on" data-v="5+0">
+            <span class="pick-name">5 min Blitz</span>
+            <span class="pick-sub">Standard arena speed</span>
+          </button>
+          <button class="pick-item" data-v="10+0">
+            <span class="pick-name">10 min Rapid</span>
+            <span class="pick-sub">Thoughtful tactical play</span>
+          </button>
+          <button class="pick-item" data-v="3+2">
+            <span class="pick-name">3 + 2s Blitz</span>
+            <span class="pick-sub">Fischer increment</span>
+          </button>
+          <button class="pick-item" data-v="0">
+            <span class="pick-name">Casual</span>
+            <span class="pick-sub">Unlimited · No clock</span>
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <!-- Storyboard Bottom Navigation -->
+    <div class="wiz-foot">
+      <button class="btn wiz-btn-prev" id="wiz-prev" style="visibility:hidden;">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        Back
+      </button>
+      <div class="wiz-dots" id="wiz-dots">
+        <span class="wiz-dot on"></span>
+        <span class="wiz-dot"></span>
+        <span class="wiz-dot"></span>
+        <span class="wiz-dot"></span>
+      </div>
+      <button class="btn go wiz-btn-next" id="wiz-next">
+        Next
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="promo" hidden>
+  <div class="pk glass"></div>
+</div>
+
+<div class="modal" id="res" hidden>
+  <div class="card glass res">
+    <div class="res-inner">
+      <div class="res-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 2l3 7h7l-6 4.5 2.3 7L12 17l-6.3 3.5L8 13 2 8.5h7z"/></svg>
+      </div>
+      <h2>White wins</h2>
+      <p>by Checkmate</p>
+      <button class="btn go" id="again">Play again</button>
+    </div>
+  </div>
+</div>
+
+<script src="engine.js?v=12"></script>
+<script src="app.bundle.js?v=12"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').then((reg) => {
+      console.log('Chess Arena Service Worker active:', reg.scope);
+    }).catch((err) => {
+      console.warn('Service Worker registration skipped:', err);
+    });
+  });
+}
+</script>
+</body>
+</html>
