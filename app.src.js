@@ -6,33 +6,60 @@ import {RoomEnvironment} from 'three/examples/jsm/environments/RoomEnvironment.j
 import Peer from 'peerjs';
 const {Game}=window.Chess,$=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const LS={get(k,d){try{const v=localStorage.getItem('rjc.'+k);return v==null?d:JSON.parse(v)}catch{return d}},set(k,v){try{localStorage.setItem('rjc.'+k,JSON.stringify(v))}catch{}}};
-const st={night:LS.get('night',matchMedia('(prefers-color-scheme: dark)').matches),sound:LS.get('sound',false),scene:LS.get('scene','room'),board:LS.get('board','wood'),pieceSet:LS.get('pieceSet','ivory'),level:LS.get('level',3),mode:LS.get('mode','cpu'),side:LS.get('side',1),name:LS.get('playerName','Grandmaster'),scenario:LS.get('scenario','backrank')};
+const st={night:LS.get('night',matchMedia('(prefers-color-scheme: dark)').matches),sfx:LS.get('sfx',true),music:LS.get('music',true),scene:LS.get('scene','room'),board:LS.get('board','wood'),pieceSet:LS.get('pieceSet','ivory'),level:LS.get('level',3),mode:LS.get('mode','cpu'),side:LS.get('side',1),name:LS.get('playerName','Grandmaster'),scenario:LS.get('scenario','backrank')};
 /* icons */
-const IC={undo:'<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/>',flip:'<path d="M4 12a8 8 0 0113.5-5.8L20 8"/><path d="M20 4v4h-4"/><path d="M20 12a8 8 0 01-13.5 5.8L4 16"/><path d="M4 20v-4h4"/>',resign:'<path d="M6 21V4"/><path d="M6 5h11l-2 4 2 4H6"/>',new:'<path d="M12 5v14M5 12h14"/>',menu:'<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',hbtn:'<path d="M5 6h14M5 12h14M5 18h9"/>',on:'<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 010 7"/>',off:'<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9l4 6M21 9l-4 6"/>'};
+const IC={undo:'<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/>',flip:'<path d="M4 12a8 8 0 0113.5-5.8L20 8"/><path d="M20 4v4h-4"/><path d="M20 12a8 8 0 01-13.5 5.8L4 16"/><path d="M4 20v-4h4"/>',resign:'<path d="M6 21V4"/><path d="M6 5h11l-2 4 2 4H6"/>',new:'<path d="M12 5v14M5 12h14"/>',menu:'<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',hbtn:'<path d="M5 6h14M5 12h14M5 18h9"/>',on:'<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 010 7"/>',off:'<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9l4 6M21 9l-4 6"/>',
+sfxOn:'<path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 010 7.07"/><path d="M19.07 4.93a10 10 0 010 14.14"/>',
+sfxOff:'<path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M23 9l-6 6M17 9l6 6"/>',
+musicOn:'<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+musicOff:'<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/><path d="M3 3l18 18"/>',
+voiceOn:'<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0M12 19v3M8 22h8"/>',
+voiceOff:'<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0M12 19v3M8 22h8"/><path d="M2 2l20 20"/>',
+leave:'<path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>'};
 const svgI=p=>`<svg viewBox="0 0 24 24" aria-hidden="true">${p}</svg>`;
 $$('.ctl .ib').forEach(b=>b.innerHTML=svgI(IC[b.dataset.a]));$('#menu').innerHTML=svgI(IC.menu);$('#hbtn').innerHTML=svgI(IC.hbtn);
 const GL={1:"<circle cx=\"22.5\" cy=\"12\" r=\"5\"/><path d=\"M17 19.500h11l-1 3.500c4.500 2 7 6 7 12.500H11c0-6.500 2.500-10.500 7-12.500z\"/><rect x=\"10\" y=\"35\" width=\"25\" height=\"5\" rx=\"2\"/>",2:"<path d=\"M12 40c0-2 .5-3 2-4 0-7 3-11 8-15-2 .5-4.500 2-6 4.500L10.500 23c1-3 3.500-6 7-8.500l.5-3.500 3 2 2.500-3.500 1.500 3c7 1.500 12 7.500 12 16 0 3.500-.5 7-1 11z\"/><circle cx=\"19.500\" cy=\"17.500\" r=\"1.200\" fill=\"#000\" opacity=\".55\"/>",3:"<circle cx=\"22.500\" cy=\"7.500\" r=\"2.800\"/><path d=\"M22.500 11c5 3.500 8 7 8 11.500 0 3-1.500 5-4 6.500l1.500 4h-11l1.500-4c-2.500-1.500-4-3.500-4-6.500 0-4.500 3-8 8-11.500z\"/><rect x=\"11\" y=\"34\" width=\"23\" height=\"6\" rx=\"2.500\"/><path d=\"M20 15.500l5 5\" stroke=\"#000\" stroke-opacity=\".5\" stroke-width=\"1.500\" fill=\"none\"/>",4:"<path d=\"M11 40v-4l3-3 1.500-13-3.500-3V8h5v3h3V8h4v3h3V8h5v9l-3.500 3 1.500 13 3 3v4z\"/>",5:"<circle cx=\"8\" cy=\"12\" r=\"2.500\"/><circle cx=\"15.500\" cy=\"8\" r=\"2.500\"/><circle cx=\"22.500\" cy=\"7\" r=\"2.500\"/><circle cx=\"29.500\" cy=\"8\" r=\"2.500\"/><circle cx=\"37\" cy=\"12\" r=\"2.500\"/><path d=\"M10.500 36L7 15l8 11 2.500-14 5 14 5-14L30 26l8-11-3.500 21z\"/><rect x=\"10\" y=\"35\" width=\"25\" height=\"5\" rx=\"2.500\"/>",6:"<path d=\"M21 3h3v4h4v3h-4v4h-3v-4h-4V7h4z\"/><path d=\"M22.500 15c-6 0-11 4-11 10 0 4 2 6 4 7l-2 6h18l-2-6c2-1 4-3 4-7 0-6-5-10-11-10z\"/><rect x=\"10\" y=\"35\" width=\"25\" height=\"5\" rx=\"2.500\"/>"};
 const glyph=(k,c)=>`<svg viewBox="0 0 45 45" class="pc ${c>0?'w':'b'}" aria-hidden="true">${GL[k]}</svg>`;
 /* audio */
-const A=(()=>{let c,m,nb,amb,timer;
-const init=()=>{if(c){c.state==='suspended'&&c.resume();return}c=new(window.AudioContext||window.webkitAudioContext)();m=c.createGain();m.gain.value=st.sound?.8:0;m.connect(c.destination);const n=c.sampleRate*2;nb=c.createBuffer(1,n,c.sampleRate);const d=nb.getChannelData(0);for(let i=0;i<n;i++)d[i]=Math.random()*2-1};
-const noise=(f,q,type,dur,v,t0=0)=>{if(!c)return;const s=c.createBufferSource(),fl=c.createBiquadFilter(),g=c.createGain(),t=c.currentTime+t0;s.buffer=nb;fl.type=type;fl.frequency.value=f;fl.Q.value=q;g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.0001,t+dur);s.connect(fl);fl.connect(g);g.connect(m);s.start(t,Math.random());s.stop(t+dur+.05)};
-const tone=(f,dur,v,type='sine',t0=0,f2)=>{if(!c)return;const o=c.createOscillator(),g=c.createGain(),t=c.currentTime+t0;o.type=type;o.frequency.setValueAtTime(f,t);f2&&o.frequency.exponentialRampToValueAtTime(f2,t+dur);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(v,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(g);g.connect(m);o.start(t);o.stop(t+dur+.05)};
-const fx={move(){noise(2200,1.2,'bandpass',.07,.55);noise(700,2,'bandpass',.1,.35);tone(170,.12,.5,'sine',0,90);tone(95,.22,.25,'triangle',0,60)},cap(){noise(1500,.8,'bandpass',.12,.9);tone(120,.18,.7,'sine',0,60);noise(2600,1,'bandpass',.05,.4,.09)},castle(){fx.move();setTimeout(fx.move,170)},sel(){tone(900,.05,.1)},lift(){noise(1200,1,'bandpass',.04,.25)},clock(){noise(4200,2,'bandpass',.03,.4);tone(1100,.04,.08,'square')},check(){tone(660,.5,.22,'triangle');tone(880,.6,.18,'triangle',.12)},end(){[523,659,784,1047].forEach((f,i)=>tone(f,1.1,.18,'triangle',i*.14))},err(){tone(160,.12,.12,'square')}};
+const A=(()=>{let c,gFx,gAmb,nb,amb,timer;
+const init=()=>{if(c){c.state==='suspended'&&c.resume().catch(()=>{});return}const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;c=new AC();
+gFx=c.createGain();gFx.gain.value=st.sfx?.85:0;gFx.connect(c.destination);
+gAmb=c.createGain();gAmb.gain.value=st.music?.75:0;gAmb.connect(c.destination);
+const n=c.sampleRate*2;nb=c.createBuffer(1,n,c.sampleRate);const d=nb.getChannelData(0);for(let i=0;i<n;i++)d[i]=Math.random()*2-1};
+const noise=(f,q,type,dur,v,t0=0)=>{if(!c||!st.sfx)return;const s=c.createBufferSource(),fl=c.createBiquadFilter(),g=c.createGain(),t=c.currentTime+t0;s.buffer=nb;fl.type=type;fl.frequency.value=f;fl.Q.value=q;g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.0001,t+dur);s.connect(fl);fl.connect(g);g.connect(gFx);s.start(t,Math.random());s.stop(t+dur+.05)};
+const tone=(f,dur,v,type='sine',t0=0,f2)=>{if(!c||!st.sfx)return;const o=c.createOscillator(),g=c.createGain(),t=c.currentTime+t0;o.type=type;o.frequency.setValueAtTime(f,t);f2&&o.frequency.exponentialRampToValueAtTime(f2,t+dur);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(v,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(g);g.connect(gFx);o.start(t);o.stop(t+dur+.05)};
+const fx={
+  move(){noise(2200,1.2,'bandpass',.07,.55);noise(700,2,'bandpass',.1,.35);tone(170,.12,.5,'sine',0,90);tone(95,.22,.25,'triangle',0,60)},
+  cap(){noise(1500,.8,'bandpass',.12,.9);tone(120,.18,.7,'sine',0,60);noise(2600,1,'bandpass',.05,.4,.09)},
+  castle(){fx.move();setTimeout(fx.move,170)},
+  sel(){tone(900,.05,.1)},
+  lift(){noise(1200,1,'bandpass',.04,.25)},
+  clock(){noise(4200,2,'bandpass',.03,.4);tone(1100,.04,.08,'square')},
+  check(){tone(660,.5,.22,'triangle');tone(880,.6,.18,'triangle',.12)},
+  end(){[523,659,784,1047].forEach((f,i)=>tone(f,1.1,.18,'triangle',i*.14))},
+  err(){tone(160,.12,.12,'square')},
+  join(){[587,880,1174].forEach((f,i)=>tone(f,.35,.14,'sine',i*.08))},
+  leave(){[880,659,440].forEach((f,i)=>tone(f,.35,.14,'triangle',i*.09))}
+};
 const bird=()=>{const n=2+Math.random()*3|0,b=2000+Math.random()*1500;for(let i=0;i<n;i++)tone(b,.09,.05,'sine',i*.13,b*1.4)};
-const ambient=(sc,night)=>{if(!c||!st.sound)return;clearInterval(timer);if(amb){const o=amb;o.g.gain.linearRampToValueAtTime(0,c.currentTime+.8);setTimeout(()=>o.n.forEach(x=>{try{x.stop()}catch{}}),1000)}
-const g=c.createGain(),ns=[];g.gain.value=0;g.gain.linearRampToValueAtTime(1,c.currentTime+1.2);g.connect(m);
+const ambient=(sc,night)=>{if(!c)return;clearInterval(timer);
+if(amb){const o=amb;if(c.state!=='closed'){o.g.gain.linearRampToValueAtTime(0,c.currentTime+.8);setTimeout(()=>o.n.forEach(x=>{try{x.stop()}catch{}}),1000)}}
+if(!st.music){amb=null;return}
+const g=c.createGain(),ns=[];g.gain.value=0;g.gain.linearRampToValueAtTime(1,c.currentTime+1.2);g.connect(gAmb);
 const loop=(f,type,v,lf,ld)=>{const s=c.createBufferSource(),fl=c.createBiquadFilter(),gg=c.createGain();s.buffer=nb;s.loop=true;fl.type=type;fl.frequency.value=f;gg.gain.value=v;if(lf){const o=c.createOscillator(),og=c.createGain();o.frequency.value=lf;og.gain.value=ld;o.connect(og);og.connect(gg.gain);o.start();ns.push(o)}s.connect(fl);fl.connect(gg);gg.connect(g);s.start();ns.push(s)};
 const cricket=()=>{const o=c.createOscillator(),mo=c.createOscillator(),mg=c.createGain(),gg=c.createGain();o.frequency.value=4300;mo.frequency.value=28;mg.gain.value=.012;gg.gain.value=.012;mo.connect(mg);mg.connect(gg.gain);o.connect(gg);gg.connect(g);o.start();mo.start();ns.push(o,mo)};
 if(sc==='room'){loop(260,'lowpass',.03);loop(1800,'bandpass',.012,.08,.02);}
 else if(sc==='beach'){loop(700,'lowpass',.08,.11,.07);loop(3200,'highpass',.012,.11,.01);night?cricket():timer=setInterval(()=>{if(Math.random()<.5){const f=1500+Math.random()*300;tone(f,.35,.05,'sawtooth',0,f*.6);tone(f*1.1,.3,.04,'sawtooth',.25,f*.7)}},4500)}
 else{loop(500,'bandpass',night?.03:.045,.07,.025);night?cricket():timer=setInterval(()=>Math.random()<.8&&bird(),2600)}
 amb={g,n:ns}};
-return{init,fx,ambient,mute(){m&&(m.gain.value=st.sound?.8:0)}}})();
-const snd=k=>st.sound&&A.fx[k]?.();
+return{init,fx,ambient,
+  setSfx(val){if(gFx&&c)gFx.gain.setValueAtTime(val?.85:0,c.currentTime)},
+  setMusic(val){if(gAmb&&c)gAmb.gain.setValueAtTime(val?.75:0,c.currentTime);if(val&&!amb)ambient(st.scene,st.night);else if(!val&&amb){amb.g.gain.linearRampToValueAtTime(0,c.currentTime+.3);setTimeout(()=>{if(amb){amb.n.forEach(x=>{try{x.stop()}catch{}});amb=null}},400)}}
+}})();
+const snd=k=>st.sfx&&A.fx[k]?.();
 
 function speak(text){
-  if(!st.sound||!('speechSynthesis' in window))return;
+  if(!st.sfx||!('speechSynthesis' in window))return;
   try{
     window.speechSynthesis.cancel();
     const u=new SpeechSynthesisUtterance(text);
@@ -483,7 +510,7 @@ for(const c of[1,-1])cp[c].sort((a,b)=>b-a);
 const pName=st.name||'Grandmaster';
 const names={top:cfg.mode==='cpu'?'Computer':cfg.mode==='online'?'Opponent':cfg.mode==='scenario'?'Tactical Opponent':bt>0?'Black':'White',bot:cfg.mode==='local'?(bt>0?'White':'Black'):pName};
 for(const[id,c,n]of[['#pb',bt,names.bot],['#pt',-bt,names.top]]){const e=$(id);e.querySelector('b').textContent=n;e.querySelector('.cap').innerHTML=cp[c].map(k=>glyph(k,-c)).join('');const a=sc*c;e.querySelector('em').textContent=a>0?'+'+a:'';e.classList.toggle('on',!over&&G.turn===c);e.classList.toggle('th',thinking&&G.turn===c)}
-$('[data-a=undo]').disabled=cfg.mode==='online'||!h.length||!!clk;paintClock();$('[data-a=resign]').disabled=over}
+$('[data-a=undo]').disabled=cfg.mode==='online'||!h.length||!!clk;paintClock();$('[data-a=resign]').disabled=over;if($('#btn-leave'))$('#btn-leave').hidden=cfg.mode!=='online';typeof updateVoiceUI==="function"&&updateVoiceUI()}
 function marks(){clr(hl);chk=null;const h=G.hist;if(h.length){const m=h[h.length-1].m;mark(hl,m.from,'sq',HM.lav);mark(hl,m.to,'sq',HM.lav)}if(!over&&G.inCheck())chk=mark(hl,G.ks[G.turn>0?0:1],'sq',HM.lav.clone())}
 function clearSel(){sel=-1;selMoves=[];clr(hs)}
 function select(sq){clearSel();sel=sq;selMoves=G.legal().filter(m=>m.from===sq);mark(hs,sq,'ring',HM.mint);for(const m of selMoves)mark(hs,m.to,m.cap?'cap':'dot',HM.mint);snd('sel')}
@@ -626,8 +653,12 @@ async function newGame(boot){
 }
 /* controls */
 $('#tg').onclick=()=>{st.night=!st.night;T.tgt=st.night?1:0;LS.set('night',st.night);A.init();A.ambient(st.scene,st.night)};
-const sndI=()=>$('#snd').innerHTML=svgI(st.sound?IC.on:IC.off);sndI();
-$('#snd').onclick=()=>{st.sound=!st.sound;LS.set('sound',st.sound);A.init();A.mute();sndI();st.sound&&A.fx.sel()};
+const sfxI=()=>{const el=$('#snd-sfx');if(el)el.innerHTML=svgI(st.sfx?IC.sfxOn:IC.sfxOff)};
+const bgmI=()=>{const el=$('#snd-bgm');if(el)el.innerHTML=svgI(st.music?IC.musicOn:IC.musicOff)};
+sfxI();bgmI();
+const sfxBtn=$('#snd-sfx');if(sfxBtn)sfxBtn.onclick=()=>{st.sfx=!st.sfx;LS.set('sfx',st.sfx);A.init();A.setSfx(st.sfx);sfxI();st.sfx&&A.fx.sel();toast(st.sfx?'Game sounds on':'Game sounds muted')};
+const bgmBtn=$('#snd-bgm');if(bgmBtn)bgmBtn.onclick=()=>{st.music=!st.music;LS.set('music',st.music);A.init();A.setMusic(st.music);bgmI();toast(st.music?'Atmospheric music on':'Atmospheric music muted')};
+const voiceBtnInit=$('#btn-voice');if(voiceBtnInit)voiceBtnInit.onclick=toggleVoice;
 $('#hbtn').innerHTML=svgI(IC.hbtn);$('#hbtn').onclick=()=>{$('#panel').classList.toggle('open');setTimeout(resize,50)};
 $('.ctl').onclick=async e=>{const b=e.target.closest('button');if(!b)return;const a=b.dataset.a;
 if(a==='flip')flipView(-viewSide);
@@ -754,25 +785,140 @@ $('#wiz-next').onclick=()=>{
     $('#sheet').hidden=true;LS.set('game',null);newGame();
   }
 };
+/* webrtc voice chat */
+let voiceStream=null,voiceAudioEl=null,activeVoiceCall=null,isVoiceMuted=true;
+function updateVoiceUI(){
+  const btn=$('#btn-voice');if(!btn)return;
+  if(cfg.mode!=='online'||!net.conn?.open){btn.hidden=true;return}
+  btn.hidden=false;
+  if(!voiceStream){
+    btn.innerHTML=svgI(IC.voiceOff);btn.title='Voice Chat (Click to Enable Mic)';btn.classList.remove('active');
+  }else if(isVoiceMuted){
+    btn.innerHTML=svgI(IC.voiceOff);btn.title='Mic Muted (Click to Unmute)';btn.classList.remove('active');
+  }else{
+    btn.innerHTML=svgI(IC.voiceOn);btn.title='Voice Live (Click to Mute)';btn.classList.add('active');
+  }
+};
+async function toggleVoice(){
+  if(cfg.mode!=='online'||!net.conn?.open){toast('Voice chat is available in online matches');return}
+  if(!voiceStream){
+    try{
+      toast('Requesting microphone access...');
+      voiceStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+      isVoiceMuted=false;updateVoiceUI();toast('Voice chat connected');
+      if(net.conn?.peer&&net.peer){activeVoiceCall=net.peer.call(net.conn.peer,voiceStream);attachVoiceCall(activeVoiceCall)}
+    }catch(err){console.warn('Mic access denied',err);toast('Microphone permission required for voice');voiceStream=null;updateVoiceUI()}
+  }else{
+    isVoiceMuted=!isVoiceMuted;
+    voiceStream.getAudioTracks().forEach(t=>{t.enabled=!isVoiceMuted});
+    updateVoiceUI();
+    toast(isVoiceMuted?'Microphone muted':'Microphone unmuted');
+  }
+}
+function attachVoiceCall(call){
+  if(!call)return;
+  call.on('stream',remoteStream=>{
+    if(!voiceAudioEl){voiceAudioEl=document.createElement('audio');voiceAudioEl.autoplay=true;voiceAudioEl.playsInline=true;document.body.appendChild(voiceAudioEl)}
+    voiceAudioEl.srcObject=remoteStream;voiceAudioEl.play().catch(()=>{});toast('Opponent voice connected');
+  });
+  call.on('close',()=>{if(voiceAudioEl){voiceAudioEl.pause();voiceAudioEl.srcObject=null}});
+  call.on('error',err=>console.warn('Voice call error',err));
+}
+function stopVoice(){
+  if(voiceStream){voiceStream.getTracks().forEach(t=>t.stop());voiceStream=null}
+  if(activeVoiceCall){try{activeVoiceCall.close()}catch{}activeVoiceCall=null}
+  if(voiceAudioEl){voiceAudioEl.pause();voiceAudioEl.srcObject=null}
+  isVoiceMuted=true;updateVoiceUI();
+}
+
 /* online */
+const PEER_CONFIG={config:{iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:global.stun.twilio.com:3478'}]}};
 const code5=()=>Array.from({length:5},()=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.random()*32|0]).join('');
 const net={peer:null,conn:null,waiting:false,code:'',isHost:false,
 send(o){this.conn?.open&&this.conn.send(o)},
-close(){try{this.conn?.close();this.peer?.destroy()}catch{}this.conn=this.peer=null;this.waiting=false},
-host(side){this.close();this.isHost=true;this.code=code5();cfg.me=side;const p=this.peer=new Peer('rjchess-'+this.code);
-p.on('open',()=>{this.waiting=true;$('#roomw').hidden=false;$('#room').textContent=this.code;$('#go').hidden=true});
-p.on('connection',c=>{if(this.conn?.open){c.close();return}this.attach(c)});
-p.on('error',e=>{if(e.type==='unavailable-id')this.host(side);else toast('Connection failed')})},
-join(code){this.close();this.isHost=false;const p=this.peer=new Peer();p.on('open',()=>this.attach(p.connect('rjchess-'+code.toUpperCase(),{reliable:true})));p.on('error',()=>toast('Room not found'));toast('Joining')},
-attach(c){this.conn=c;const ok=()=>{this.waiting=false;$('#go').hidden=false;$('#roomw').hidden=true;$('#sheet').hidden=true;if(this.isHost)this.start(cfg.me)};c.open?ok():c.on('open',ok);
-c.on('data',d=>{if(d.t==='move')doMove(d.from,d.to,d.promo,true);else if(d.t==='start'){cfg.me=d.you;cfg.time=d.time||'0';this.begin()}else if(d.t==='resign'&&!over){over=true;endGame({win:cfg.me,why:'Resigned'});ui()}});
-c.on('close',()=>toast('Opponent left',3000))},
+close(){try{this.conn?.close();this.peer?.destroy()}catch{}this.conn=this.peer=null;this.waiting=false;stopVoice();updateVoiceUI()},
+leave(){
+  if(this.conn?.open){try{this.send({t:'bye'})}catch{}}
+  stopVoice();this.close();A.fx.leave();cfg.mode='cpu';ui();toast('Exited online room');openSheet();
+},
+host(side){
+  this.close();this.isHost=true;this.code=code5();cfg.me=side;
+  const p=this.peer=new Peer('rjchess-'+this.code,PEER_CONFIG);
+  p.on('open',()=>{this.waiting=true;const rw=$('#roomw');if(rw)rw.hidden=false;const rm=$('#room');if(rm)rm.textContent=this.code;const nxt=$('#wiz-next');if(nxt)nxt.hidden=true});
+  p.on('connection',c=>{if(this.conn?.open){c.close();return}this.attach(c)});
+  p.on('call',call=>{call.answer(voiceStream||new MediaStream());attachVoiceCall(call)});
+  p.on('disconnected',()=>{try{p.reconnect()}catch{}});
+  p.on('error',e=>{if(e.type==='unavailable-id')this.host(side);else toast('Connection error: '+(e.type||'network'))})
+},
+join(code){
+  this.close();this.isHost=false;
+  const p=this.peer=new Peer(PEER_CONFIG);
+  p.on('open',()=>this.attach(p.connect('rjchess-'+code.toUpperCase(),{reliable:true})));
+  p.on('call',call=>{call.answer(voiceStream||new MediaStream());attachVoiceCall(call)});
+  p.on('disconnected',()=>{try{p.reconnect()}catch{}});
+  p.on('error',()=>toast('Room '+code+' not found'));
+  toast('Connecting to room '+code+'...')
+},
+attach(c){
+  this.conn=c;
+  const ok=()=>{
+    this.waiting=false;const nxt=$('#wiz-next');if(nxt)nxt.hidden=false;const rw=$('#roomw');if(rw)rw.hidden=true;const sh=$('#sheet');if(sh)sh.hidden=true;
+    A.fx.join();toast('Player connected! Match started');updateVoiceUI();
+    if(this.isHost)this.start(cfg.me)
+  };
+  c.open?ok():c.on('open',ok);
+  c.on('data',d=>{
+    if(d.t==='move')doMove(d.from,d.to,d.promo,true);
+    else if(d.t==='start'){cfg.me=d.you;cfg.time=d.time||'0';this.begin()}
+    else if(d.t==='resign'&&!over){over=true;endGame({win:cfg.me,why:'Resigned'});ui()}
+    else if(d.t==='bye'){toast('Opponent left the room',3500);A.fx.leave();stopVoice();over=true;endGame({win:cfg.me,why:'Opponent left'});ui()}
+  });
+  c.on('close',()=>{toast('Opponent disconnected');A.fx.leave();stopVoice()})
+},
 start(me){this.send({t:'start',you:-me,time:cfg.time});this.begin()},
-begin(){cfg.mode='online';$('#sheet').hidden=true;newGame()}};
+begin(){cfg.mode='online';$('#sheet').hidden=true;newGame();updateVoiceUI()}};
 function rematch(){cfg.me=-cfg.me;net.start(cfg.me)}
+const crBtn=$('#btn-create-room');
+if(crBtn)crBtn.onclick=()=>{
+  A.init();
+  const side=D.side||(Math.random()<.5?1:-1);
+  toast('Creating multiplayer room...');
+  net.host(side);
+};
 $('#join').onclick=()=>{const c=$('#code').value.trim();if(c.length===5){A.init();net.join(c)}else toast('Enter the 5 character code')};
-$('#copy').onclick=async()=>{const u=location.origin+location.pathname+'?room='+net.code;try{navigator.share?await navigator.share({url:u}):await navigator.clipboard.writeText(u);toast('Invite copied')}catch{try{await navigator.clipboard.writeText(u);toast('Invite copied')}catch{}}};
+const mSfx=$('#modal-sfx-btn');if(mSfx){
+  const updSfx=()=>mSfx.textContent='Sounds: '+(st.sfx?'ON':'OFF');
+  updSfx();
+  mSfx.onclick=()=>{st.sfx=!st.sfx;LS.set('sfx',st.sfx);A.init();A.setSfx(st.sfx);updSfx();sfxI();toast(st.sfx?'Game sounds on':'Game sounds muted')};
+}
+const mBgm=$('#modal-bgm-btn');if(mBgm){
+  const updBgm=()=>mBgm.textContent='Music: '+(st.music?'ON':'OFF');
+  updBgm();
+  mBgm.onclick=()=>{st.music=!st.music;LS.set('music',st.music);A.init();A.setMusic(st.music);updBgm();bgmI();toast(st.music?'Atmospheric music on':'Atmospheric music muted')};
+}
+const mRst=$('#modal-rst-btn');if(mRst){
+  mRst.onclick=()=>{if(cfg.mode==='online'){toast('Reset disabled in online room');return}LS.set('game',null);$('#sheet').hidden=true;newGame();toast('Fresh match started')};
+}
+
+$('#copy').onclick=async()=>{
+  const u=location.origin+location.pathname+'?room='+net.code;
+  const shareData={title:'Chess Arena 3D — Room '+net.code,text:'Join my live 3D Chess match! Room code: '+net.code,url:u};
+  if(navigator.share&&/mobile|android|iphone/i.test(navigator.userAgent)){
+    try{await navigator.share(shareData);toast('Invite link shared');return}catch{}
+  }
+  try{await navigator.clipboard.writeText(u);toast('Invite link copied')}
+  catch{
+    try{
+      const ta=document.createElement('textarea');ta.value=u;ta.style.position='fixed';ta.style.opacity='0';
+      document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
+      toast('Invite link copied')
+    }catch{}
+  }
+  const cb=$('#copy');if(cb){const orig=cb.textContent;cb.textContent='Link Copied!';setTimeout(()=>{if(cb)cb.textContent=orig},2000)}
+};
 $('#menu').onclick=openSheet;
+const leaveBtn=$('#btn-leave');if(leaveBtn)leaveBtn.onclick=()=>net.leave();
+
 /* wake lock */
 let wl=null;async function lock(){try{if('wakeLock'in navigator&&!wl){wl=await navigator.wakeLock.request('screen');wl.addEventListener('release',()=>wl=null)}}catch{}}
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')lock()});lock();
@@ -780,4 +926,15 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 addEventListener('pointerdown',()=>{A.init();A.ambient(st.scene,st.night);lock()},{once:true});
 $('#panel').style.visibility='hidden';
 T.cur=T.tgt=st.night?1:0;document.documentElement.dataset.theme=st.night?'night':'day';
-const room=new URLSearchParams(location.search).get('room');if(room){cfg.mode='online';LS.set('seen',1);setTimeout(()=>{openSheet();D.mode='online';syncSheet();$('#code').value=room.toUpperCase();net.join(room)},800)}
+const roomParam=new URLSearchParams(location.search).get('room');
+if(roomParam){
+  cfg.mode='online';LS.set('seen',1);
+  const joinWhenReady=()=>{
+    if(!ready){setTimeout(joinWhenReady,120);return}
+    openSheet();D.mode='online';syncSheet();
+    const ci=$('#code');if(ci)ci.value=roomParam.trim().toUpperCase();
+    toast('Joining room '+roomParam.trim().toUpperCase()+'...');
+    net.join(roomParam.trim().toUpperCase());
+  };
+  joinWhenReady();
+}
